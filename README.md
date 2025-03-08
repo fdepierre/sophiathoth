@@ -2,6 +2,14 @@
 
 SophiaThoth is a collaborative knowledge management system designed to populate a comprehensive knowledge base with accurate information and provide users with the ability to ask questions and receive informed answers.
 
+## Experimental Project
+
+This is an experimental project where:
+- The requirements (see REQUIREMENT.md) were generated using Perplexity.ai
+- The codebase was generated using Windsurf IDE
+
+This project serves as a demonstration of AI-assisted software development.
+
 ## System Overview
 
 SophiaThoth is designed as a microservices architecture with the following components:

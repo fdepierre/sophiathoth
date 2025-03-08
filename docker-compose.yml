@@ -1,0 +1,184 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+      POSTGRES_USER: ${POSTGRES_USER:-sophia_user}
+      POSTGRES_DB: ${POSTGRES_DB:-sophia_db}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sophia_user -d sophia_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # Using local Ollama installation instead of Docker container
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    environment:
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-admin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/sophia_db
+      KC_DB_USERNAME: ${POSTGRES_USER:-sophia_user}
+      KC_DB_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    ports:
+      - "8080:8080"
+    command: start-dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  temporal:
+    image: temporalio/auto-setup:latest
+    ports:
+      - "7233:7233"
+    environment:
+      - CASSANDRA_SEEDS=temporal-cassandra
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+    depends_on:
+      - temporal-cassandra
+
+  temporal-cassandra:
+    image: cassandra:3.11
+    ports:
+      - "9042:9042"
+    volumes:
+      - temporal_cassandra_data:/var/lib/cassandra
+
+  temporal-ui:
+    image: temporalio/ui:latest
+    ports:
+      - "8088:8080"
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    depends_on:
+      - temporal
+
+  document-processor:
+    build:
+      context: ./document_processor
+      dockerfile: Dockerfile
+    volumes:
+      - ./document_processor:/app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sophia_user}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-sophia_db}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  semantic-engine:
+    build:
+      context: ./semantic_engine
+      dockerfile: Dockerfile
+    volumes:
+      - ./semantic_engine:/app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sophia_user}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-sophia_db}
+      OLLAMA_API_URL: http://host.docker.internal:11434
+    ports:
+      - "8002:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Using local Ollama installation
+
+  knowledge-base:
+    build:
+      context: ./knowledge_base
+      dockerfile: Dockerfile
+    # volumes:
+    #   - ./knowledge_base:/app
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sophia_user}:${POSTGRES_PASSWORD:-password}@postgres:5432/${POSTGRES_DB:-sophia_db}
+    ports:
+      - "8003:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # user-management service will be implemented later
+
+  # workflow-service service will be implemented later
+
+  api-gateway:
+    image: traefik:v2.10
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8090:8080"
+    volumes:
+      - ./api_gateway/traefik:/etc/traefik
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    depends_on:
+      - document-processor
+      - semantic-engine
+      - knowledge-base
+      # - user-management
+      # - workflow-service
+
+  web-ui:
+    image: nginx:alpine
+    ports:
+      - "3000:80"
+    volumes:
+      - ./web_ui/build:/usr/share/nginx/html
+      - ./web_ui/nginx.conf:/etc/nginx/conf.d/default.conf
+    environment:
+      - REACT_APP_API_URL=http://localhost:8003/api/v1
+      - REACT_APP_KEYCLOAK_URL=http://localhost:8080
+      - REACT_APP_KEYCLOAK_REALM=sophiathoth
+      - REACT_APP_KEYCLOAK_CLIENT_ID=web-ui
+    depends_on:
+      - api-gateway
+      - knowledge-base
+      - keycloak
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  # ollama_data:
+  temporal_cassandra_data:

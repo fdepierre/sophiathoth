@@ -110,4 +110,4 @@ class ParsedExcelResponse(BaseModel):
     document_id: str
     sheet_count: int
     question_count: int
-    metadata: Dict[str, Any]
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)

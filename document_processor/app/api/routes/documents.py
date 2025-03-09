@@ -51,11 +51,16 @@ async def upload_document(
             user_id=user_id
         )
         
+        # Ensure metadata is a dictionary
+        metadata = {}
+        if document.doc_metadata and isinstance(document.doc_metadata, dict):
+            metadata = document.doc_metadata
+        
         return ParsedExcelResponse(
             document_id=document.id,
             sheet_count=len(sheets),
             question_count=len(questions),
-            metadata=document.metadata or {}
+            metadata=metadata
         )
     except Exception as e:
         logger.error(f"Error processing document: {str(e)}")

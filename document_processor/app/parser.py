@@ -176,13 +176,31 @@ class ExcelParser:
             if not sheet_id:
                 continue
                 
+            # Convert column to integer if possible, otherwise use a default value
+            column_index = 0  # Default to 0
+            try:
+                if isinstance(question_data["column"], (int, float)):
+                    column_index = int(question_data["column"])
+                elif isinstance(question_data["column"], str):
+                    if question_data["column"].isdigit():
+                        column_index = int(question_data["column"])
+                    else:
+                        # For non-numeric column headers, we'll use the position in the headers list
+                        sheet_info = parsed_data["structure"].get(question_data["sheet"], {})
+                        headers = sheet_info.get("headers", [])
+                        if headers and question_data["column"] in headers:
+                            column_index = headers.index(question_data["column"])
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Error converting column index: {e}. Using default value 0.")
+                column_index = 0  # Fallback to 0 if there's any error
+            
             question = TenderQuestion(
                 document_id=document.id,
                 sheet_id=sheet_id,
                 text=question_data["text"],
                 row_index=question_data["row"],
-                column_index=str(question_data["column"]),
-                context=f"From sheet: {question_data['sheet']}, row: {question_data['row']}"
+                column_index=column_index,
+                context=f"From sheet: {question_data['sheet']}, row: {question_data['row']}, column: {question_data['column']}"
             )
             db.add(question)
             questions.append(question)

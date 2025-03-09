@@ -3,13 +3,37 @@ import keycloak from '../config/keycloak';
 
 // Access environment variables from window._env_ (set by env.sh)
 const getEnv = (key, defaultValue) => {
+  // Debug environment variables
+  console.log('Getting environment variable:', key);
+  
   // Check if running in a browser environment
-  if (typeof window !== 'undefined' && window._env_ && window._env_[key]) {
-    return window._env_[key];
+  if (typeof window !== 'undefined') {
+    console.log('Running in browser environment');
+    
+    // Debug window._env_ object
+    if (window._env_) {
+      console.log('window._env_ is available:', Object.keys(window._env_));
+      if (window._env_[key]) {
+        console.log(`Found ${key} in window._env_:`, window._env_[key]);
+        return window._env_[key];
+      } else {
+        console.log(`${key} not found in window._env_`);
+      }
+    } else {
+      console.log('window._env_ is not available');
+    }
+  } else {
+    console.log('Not running in browser environment');
   }
   
   // Fallback to process.env (for development)
-  return process.env[key] || defaultValue;
+  if (process.env && process.env[key]) {
+    console.log(`Found ${key} in process.env:`, process.env[key]);
+    return process.env[key];
+  } else {
+    console.log(`${key} not found in process.env, using default:`, defaultValue);
+    return defaultValue;
+  }
 };
 
 const API_URL = getEnv('REACT_APP_API_URL', 'http://localhost:8003/api/v1');
@@ -237,39 +261,127 @@ export const searchEntries = async (query, limit = 10) => {
 // Document Processing
 export const uploadExcelDocument = async (file) => {
   try {
+    console.log('uploadExcelDocument called with file:', file.name);
+    
     const formData = new FormData();
     formData.append('file', file);
+    console.log('FormData created with file appended');
     
     // Upload to document processor service
     const docProcessorUrl = getEnv('REACT_APP_DOC_PROCESSOR_URL', 'http://localhost:8001/api/v1');
+    console.log('Document processor URL:', docProcessorUrl);
+    
+    // Ensure URL doesn't end with a trailing slash
+    const baseUrl = docProcessorUrl.endsWith('/') ? docProcessorUrl.slice(0, -1) : docProcessorUrl;
+    console.log('Using document processor base URL:', baseUrl);
     
     const docProcessorApi = axios.create({
-      baseURL: docProcessorUrl,
+      baseURL: baseUrl,
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      // Add timeout to prevent hanging requests
+      timeout: 30000
     });
     
     // Add auth token if authenticated
     if (keycloak.authenticated) {
+      console.log('Adding authentication token to document processor request');
       docProcessorApi.defaults.headers.common['Authorization'] = `Bearer ${keycloak.token}`;
+    } else {
+      console.log('No authentication token available for document processor');
     }
     
-    const response = await docProcessorApi.post('/documents/', formData);
+    console.log('Sending POST request to:', `${baseUrl}/documents/`);
+    
+    // Log form data contents (without exposing the actual file data)
+    for (let pair of formData.entries()) {
+      console.log('FormData entry:', pair[0], 'type:', typeof pair[1], 'name:', pair[1].name || 'N/A');
+    }
+    
+    // First, check if the document processor API is accessible
+    try {
+      console.log('Testing document processor API accessibility...');
+      const healthCheck = await axios.get(`${baseUrl}/health`, { timeout: 5000 });
+      console.log('Document processor API health check:', healthCheck.status, healthCheck.data);
+    } catch (healthError) {
+      console.warn('Document processor API health check failed:', healthError.message);
+      console.log('Will still attempt to upload document');
+    }
+    
+    // Set up request with better error handling
+    let uploadResponse;
+    
+    try {
+      console.log('Attempting document upload with explicit content type and headers');
+      
+      // Try with explicit headers
+      const response = await docProcessorApi.post('/documents/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log('Document upload response status:', response.status);
+      console.log('Document upload response data:', response.data);
+      uploadResponse = response;
+      
+    } catch (uploadError) {
+      console.error('Specific upload error:', uploadError.message);
+      
+      if (uploadError.response) {
+        console.error('Upload error response:', {
+          status: uploadError.response.status,
+          data: uploadError.response.data,
+          headers: uploadError.response.headers
+        });
+      } else if (uploadError.request) {
+        console.error('Upload error - no response received:', uploadError.request);
+      }
+      
+      // Try an alternative approach with different content type
+      console.log('Trying alternative upload approach...');
+      try {
+        // Create a new FormData object
+        const newFormData = new FormData();
+        newFormData.append('file', file);
+        
+        // Try without specifying content type (let axios set it automatically)
+        const altResponse = await axios.post(`${baseUrl}/documents/`, newFormData);
+        console.log('Alternative upload succeeded:', altResponse.status, altResponse.data);
+        uploadResponse = altResponse;
+      } catch (altError) {
+        console.error('Alternative upload also failed:', altError.message);
+        throw uploadError; // Throw the original error
+      }
+    }
     
     // After successful upload, process the document questions into knowledge entries
-    if (response.data && response.data.document_id) {
-      const processedEntries = await processDocumentToKnowledge(response.data.document_id);
+    if (uploadResponse && uploadResponse.data && uploadResponse.data.document_id) {
+      console.log(`Document uploaded successfully with ID: ${uploadResponse.data.document_id}`);
+      console.log('Processing document questions into knowledge entries...');
+      
+      const processedEntries = await processDocumentToKnowledge(uploadResponse.data.document_id);
+      console.log(`Processed ${processedEntries.length} entries from document`);
+      
       // Add the processed entries to the response data
       return {
-        ...response.data,
+        ...uploadResponse.data,
         processedEntries
       };
+    } else {
+      console.warn('Document uploaded but no document_id returned in response');
+      return uploadResponse ? uploadResponse.data : { error: 'No valid response from document upload' };
     }
-    
-    return response.data;
   } catch (error) {
     console.error('Error uploading Excel document:', error);
+    console.error('Error details:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      stack: error.stack
+    });
     throw error;
   }
 };

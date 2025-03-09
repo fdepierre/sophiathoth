@@ -38,17 +38,26 @@ const DocumentUpload = () => {
   const handleFileChange = (event) => {
     const selectedFile = event.target.files[0];
     if (selectedFile) {
+      console.log('Selected file:', selectedFile);
+      console.log('File type:', selectedFile.type);
+      console.log('File name:', selectedFile.name);
+      console.log('File size:', selectedFile.size, 'bytes');
+      
       // Check if it's an Excel file
       if (selectedFile.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
           selectedFile.type === 'application/vnd.ms-excel' ||
           selectedFile.name.endsWith('.xlsx') || 
           selectedFile.name.endsWith('.xls')) {
+        console.log('File validation passed: Excel file detected');
         setFile(selectedFile);
         setError(null);
       } else {
+        console.error('File validation failed: Not an Excel file');
         setFile(null);
         setError('Please select a valid Excel file (.xlsx or .xls)');
       }
+    } else {
+      console.log('No file selected');
     }
   };
 
@@ -58,18 +67,31 @@ const DocumentUpload = () => {
       return;
     }
 
+    console.log('Starting file upload process for:', file.name);
+    console.log('File details:', {
+      name: file.name,
+      type: file.type,
+      size: file.size,
+      lastModified: new Date(file.lastModified).toISOString()
+    });
+
     setLoading(true);
     setError(null);
     setSuccess(null);
     setProcessedEntries([]);
 
     try {
+      console.log('Calling uploadExcelDocument API...');
       const result = await uploadExcelDocument(file);
+      console.log('Upload successful, response:', result);
       setSuccess(`File uploaded successfully! Document ID: ${result.document_id}`);
       
       // If we have processed entries from the knowledge base
       if (result.processedEntries && result.processedEntries.length > 0) {
+        console.log(`Received ${result.processedEntries.length} processed entries`);
         setProcessedEntries(result.processedEntries);
+      } else {
+        console.warn('No processed entries returned from the API');
       }
       
       // Reset file selection
@@ -77,9 +99,15 @@ const DocumentUpload = () => {
       document.getElementById('excel-upload-input').value = '';
     } catch (err) {
       console.error('Error uploading file:', err);
+      console.error('Error details:', {
+        message: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      });
       setError(err.response?.data?.detail || 'Error uploading file. Please try again.');
     } finally {
       setLoading(false);
+      console.log('Upload process completed');
     }
   };
 

@@ -44,13 +44,25 @@ class TestKnowledgeBaseSemanticSearch(unittest.TestCase):
             }
         ]
         
-        # Verify API is accessible
+        # Verify API is accessible and database is healthy
         try:
             response = requests.get(f"{KB_API_BASE_URL}/health")
             if response.status_code != 200:
                 self.skipTest(f"Knowledge Base API is not available at {KB_API_BASE_URL}")
+            
+            # Check if the database component is healthy
+            health_data = response.json()
+            if health_data.get("components", {}).get("database") != "healthy":
+                self.skipTest(f"Knowledge Base database is not healthy at {KB_API_BASE_URL}")
+            
+            # Log if API is in degraded state but we're continuing with tests
+            if health_data.get("status") == "degraded":
+                print(f"WARNING: Knowledge Base API is in degraded state, but database is healthy. Continuing with tests.")
+                
         except requests.RequestException:
             self.skipTest(f"Knowledge Base API is not available at {KB_API_BASE_URL}")
+        except ValueError:
+            self.skipTest(f"Invalid health response from Knowledge Base API at {KB_API_BASE_URL}")
         
         # Create test entries for semantic search
         self.created_entries = []

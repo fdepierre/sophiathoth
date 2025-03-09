@@ -36,6 +36,8 @@ run_knowledge_base_tests() {
 # Function to run web UI tests
 run_web_ui_tests() {
     echo "Running web UI functional tests..."
+    # Note: Test credentials for Keycloak authentication are defined in set_up/setup-keycloak.sh
+    # Default test user: knowledge_user / Test@123
     
     # Check if the web UI is running
     if ! curl -s http://localhost:3000 > /dev/null; then

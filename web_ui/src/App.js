@@ -19,6 +19,7 @@ import EntryDetail from './pages/EntryDetail';
 import Categories from './pages/Categories';
 import Search from './pages/Search';
 import Login from './pages/Login';
+import DocumentUpload from './pages/DocumentUpload';
 
 const theme = createTheme({
   palette: {
@@ -78,7 +79,7 @@ const RoleRoute = ({ element, allowedRoles }) => {
 
 // Routes component
 function AppRoutes() {
-  const { authenticated, loading, isProductManager, isPresales } = useAuth();
+  const { authenticated, loading, isKnowledgeRole } = useAuth();
 
   if (loading) {
     return (
@@ -112,10 +113,10 @@ function AppRoutes() {
           </AuthenticatedLayout>
         } />
         
-        {/* Product Manager specific routes */}
+        {/* Knowledge role specific routes */}
         <Route path="/entries" element={
           <AuthenticatedLayout>
-            {isProductManager() ? 
+            {isKnowledgeRole() ? 
               <KnowledgeEntries /> : 
               <Navigate to="/unauthorized" />
             }
@@ -123,7 +124,7 @@ function AppRoutes() {
         } />
         <Route path="/entries/:id" element={
           <AuthenticatedLayout>
-            {isProductManager() ? 
+            {isKnowledgeRole() ? 
               <EntryDetail /> : 
               <Navigate to="/unauthorized" />
             }
@@ -131,36 +132,22 @@ function AppRoutes() {
         } />
         <Route path="/categories" element={
           <AuthenticatedLayout>
-            {isProductManager() ? 
+            {isKnowledgeRole() ? 
               <Categories /> : 
               <Navigate to="/unauthorized" />
             }
           </AuthenticatedLayout>
         } />
+        <Route path="/document-upload" element={
+          <AuthenticatedLayout>
+            {isKnowledgeRole() ? 
+              <DocumentUpload /> : 
+              <Navigate to="/unauthorized" />
+            }
+          </AuthenticatedLayout>
+        } />
         
-        {/* Pre-sales specific routes - will be implemented later */}
-        <Route path="/tenders" element={
-          <AuthenticatedLayout>
-            {isPresales() ? 
-              <Box>
-                <h1>Tenders Dashboard</h1>
-                <p>This page will allow Pre-sales specialists to manage tender responses.</p>
-              </Box> : 
-              <Navigate to="/unauthorized" />
-            }
-          </AuthenticatedLayout>
-        } />
-        <Route path="/analyze" element={
-          <AuthenticatedLayout>
-            {isPresales() ? 
-              <Box>
-                <h1>Tender Analysis</h1>
-                <p>This page will allow Pre-sales specialists to analyze tender documents.</p>
-              </Box> : 
-              <Navigate to="/unauthorized" />
-            }
-          </AuthenticatedLayout>
-        } />
+        {/* Removed Pre-sales specific routes */}
       </Route>
       
       {/* Redirect any unknown routes to login or dashboard based on auth state */}

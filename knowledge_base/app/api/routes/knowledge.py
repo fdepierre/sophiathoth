@@ -51,7 +51,11 @@ async def create_knowledge_entry(
         created_by=user_id
     )
     
-    # Process tags
+    # Add entry to session first
+    db.add(db_entry)
+    db.flush()
+    
+    # Process tags after entry is in session
     if entry.tags:
         for tag_name in entry.tags:
             # Check if tag exists by name or ID
@@ -65,7 +69,14 @@ async def create_knowledge_entry(
                 db.add(tag)
                 db.flush()
             
-            db_entry.tags.append(tag)
+            # Make sure both objects are in the same session
+            db.refresh(tag)
+            db.refresh(db_entry)
+            
+            # Use SQLAlchemy's relationship management
+            if tag not in db_entry.tags:
+                db_entry.tags.append(tag)
+                db.flush()  # Flush after each tag to ensure it's properly associated
     
     # Try to categorize if no category provided
     if not entry.category_id:
@@ -89,9 +100,10 @@ async def create_knowledge_entry(
         except Exception as e:
             logger.error(f"Error auto-categorizing knowledge entry: {e}")
     
-    # Create initial revision
+    # Entry is already added to session above
+    # Now create initial revision after we have a valid ID
     revision = KnowledgeRevision(
-        knowledge_id=db_entry.id,
+        knowledge_id=db_entry.id,  # This ID is now valid since we've flushed the session
         version=1,
         title=entry.title,
         content=entry.content,
@@ -100,11 +112,6 @@ async def create_knowledge_entry(
         created_by=user_id
     )
     
-    db.add(db_entry)
-    db.flush()
-    
-    # Update revision with knowledge ID
-    revision.knowledge_id = db_entry.id
     db.add(revision)
     
     db.commit()

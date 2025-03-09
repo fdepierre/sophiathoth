@@ -16,6 +16,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import AnalyticsIcon from '@mui/icons-material/Analytics';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import { useAuth } from '../contexts/AuthContext';
 
 const drawerWidth = 240;
@@ -26,16 +27,11 @@ const commonMenuItems = [
   { text: 'Search', icon: <SearchIcon />, path: '/search' },
 ];
 
-// Product Manager specific menu items
-const productManagerMenuItems = [
+// Knowledge role specific menu items (previously product manager items)
+const knowledgeRoleMenuItems = [
   { text: 'Knowledge Entries', icon: <LibraryBooksIcon />, path: '/entries' },
   { text: 'Categories', icon: <CategoryIcon />, path: '/categories' },
-];
-
-// Pre-sales specific menu items
-const presalesMenuItems = [
-  { text: 'Tenders', icon: <AssignmentIcon />, path: '/tenders' },
-  { text: 'Analyze', icon: <AnalyticsIcon />, path: '/analyze' },
+  { text: 'Upload Excel', icon: <CloudUploadIcon />, path: '/document-upload' },
 ];
 
 // Secondary menu items (currently disabled)
@@ -46,17 +42,13 @@ const secondaryMenuItems = [
 
 function Sidebar() {
   const location = useLocation();
-  const { isProductManager, isPresales } = useAuth();
+  const { isKnowledgeRole } = useAuth();
   
   // Determine which menu items to show based on user role
   const roleSpecificItems = [];
   
-  if (isProductManager()) {
-    roleSpecificItems.push(...productManagerMenuItems);
-  }
-  
-  if (isPresales()) {
-    roleSpecificItems.push(...presalesMenuItems);
+  if (isKnowledgeRole()) {
+    roleSpecificItems.push(...knowledgeRoleMenuItems);
   }
   
   // Combine common items with role-specific items

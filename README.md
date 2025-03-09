@@ -34,6 +34,141 @@ SophiaThoth is designed as a microservices architecture with the following compo
 
 ## Detailed Architecture
 
+### Component Purposes and Communication Flow
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│                 │     │                 │     │                 │
+│     Web UI      │────▶│   API Gateway   │────▶│ User Management │
+│                 │     │                 │     │    (Keycloak)   │
+└─────────────────┘     └────────┬────────┘     └─────────────────┘
+                                 │
+                                 │
+                                 ▼
+                        ┌─────────────────┐
+                        │                 │
+                        │ Document        │
+                        │ Processor       │
+                        └────────┬────────┘
+                                 │
+                                 │
+                                 ▼
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│                 │     │                 │     │                 │
+│    Workflow     │◀───▶│  Knowledge Base │◀───▶│ Semantic Engine │
+│    Service      │     │    Service      │     │    Service      │
+└─────────────────┘     └─────────────────┘     └────────┬────────┘
+                                                         │
+                                                         │
+                                                         ▼
+                                               ┌─────────────────┐
+                                               │                 │
+                                               │     Ollama      │
+                                               │     (LLM)       │
+                                               └─────────────────┘
+```
+
+#### Component Purposes
+
+1. **Document Processor Service**
+   - **Purpose**: Ingests and processes Excel files containing questions and answers
+   - **Key Responsibilities**:
+     - Parses Excel documents to extract structured data
+     - Identifies questions and answers using pattern recognition
+     - Stores original documents in MinIO object storage
+     - Creates database records for documents, sheets, and questions
+   - **Communication**:
+     - Receives file uploads via the API Gateway
+     - Sends extracted questions to Knowledge Base Service
+     - Provides document metadata for search and retrieval
+
+2. **Semantic Engine Service**
+   - **Purpose**: Provides natural language understanding capabilities
+   - **Key Responsibilities**:
+     - Generates vector embeddings for text using sentence-transformers
+     - Performs semantic similarity searches to find related content
+     - Integrates with Ollama LLM to generate natural language responses
+     - Provides sentiment analysis and entity recognition
+   - **Communication**:
+     - Receives text from Knowledge Base for embedding generation
+     - Sends queries to Ollama for response generation
+     - Provides similarity search results to Knowledge Base
+     - Assists with automatic categorization of knowledge entries
+
+3. **Knowledge Base Service**
+   - **Purpose**: Central repository for all knowledge entries
+   - **Key Responsibilities**:
+     - Manages CRUD operations for knowledge entries
+     - Organizes content with categories and tags
+     - Provides search capabilities (full-text and semantic)
+     - Handles attachments and version history
+   - **Communication**:
+     - Receives knowledge entries from Document Processor
+     - Requests embeddings and similarity searches from Semantic Engine
+     - Provides knowledge entries to Web UI
+     - Sends context to Semantic Engine for response generation
+
+4. **User Management Service (Keycloak)**
+   - **Purpose**: Handles authentication and authorization
+   - **Key Responsibilities**:
+     - Manages user accounts and profiles
+     - Implements role-based access control
+     - Issues and validates JWT tokens
+     - Provides single sign-on capabilities
+   - **Communication**:
+     - Authenticates users from Web UI
+     - Provides tokens to Web UI for API access
+     - Validates tokens for all service requests
+
+5. **Workflow Service** (Planned - Not Yet Implemented)
+   - **Purpose**: Will orchestrate multi-step business processes
+   - **Planned Responsibilities**:
+     - Manage the tender response workflow
+     - Track approval processes
+     - Send notifications to relevant users
+     - Maintain audit trails of activities
+   - **Planned Communication**:
+     - Interact with Knowledge Base for content
+     - Notify users through Web UI
+     - Update status of workflow items
+   - **Implementation Status**: 
+     - Planned for future development
+     - Will leverage Temporal.io for workflow orchestration
+
+6. **API Gateway**
+   - **Purpose**: Provides a unified entry point for all client requests
+   - **Key Responsibilities**:
+     - Routes requests to appropriate services
+     - Handles load balancing
+     - Implements rate limiting and security policies
+     - Provides service discovery
+   - **Communication**:
+     - Receives all requests from Web UI
+     - Routes to appropriate microservices
+     - Aggregates responses when needed
+
+7. **Web UI**
+   - **Purpose**: Provides user interface for all system interactions
+   - **Key Responsibilities**:
+     - Presents dashboard with system overview
+     - Facilitates knowledge entry management
+     - Enables document uploads and processing
+     - Provides search interface
+   - **Communication**:
+     - Sends requests to API Gateway
+     - Displays responses to users
+     - Manages user authentication with Keycloak
+
+8. **Ollama (LLM)**
+   - **Purpose**: Provides large language model capabilities
+   - **Key Responsibilities**:
+     - Generates natural language responses to questions
+     - Formats information from knowledge entries
+     - Provides text analysis capabilities
+   - **Communication**:
+     - Receives prompts from Semantic Engine
+     - Returns generated text responses
+
 ### Document Processor Service
 
 - **Implementation**: Python with FastAPI
@@ -58,6 +193,8 @@ SophiaThoth is designed as a microservices architecture with the following compo
   - Semantic similarity calculation
   - Entity recognition and extraction
   - Integration with vector database (PostgreSQL with pgvector)
+  - LLM integration for response generation
+  - Context-aware question answering
 
 ### Knowledge Base Service
 
@@ -89,13 +226,17 @@ SophiaThoth is designed as a microservices architecture with the following compo
 
 ### API Gateway
 
-- **Implementation**: Traefik
-- **Configuration**: Docker labels for service discovery
-- **Features**:
-  - Routing and load balancing
-  - SSL termination
-  - Service discovery
+- **Implementation**: Traefik v2.10
+- **Configuration**: Mounted configuration from api_gateway/traefik directory
+- **Current Features**:
+  - Routing requests to appropriate microservices
+  - Exposing admin dashboard on port 8090
+  - Docker socket integration for service discovery
+- **Potential Features** (can be configured as needed):
+  - SSL termination for HTTPS
   - Rate limiting
+  - Circuit breaking
+  - Load balancing
 
 ## Database Schema
 

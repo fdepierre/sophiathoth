@@ -17,11 +17,11 @@
 #    - Role: Keycloak administrator
 #    - Access: Full admin access to Keycloak
 #
-# 2. Admin User:
-#    - Username: admin_user
+# 2. Knowledge User:
+#    - Username: knowledge_user
 #    - Password: Test@123
-#    - Role: admin
-#    - Access: Full access to all features and administration
+#    - Role: knowledge_role
+#    - Access: Access to create and update content in the application
 #
 # 3. Regular User:
 #    - Username: user_user
@@ -31,7 +31,7 @@
 #
 # ROLES DESCRIPTION:
 # -----------------
-# - admin: Full access to all features and administration
+# - knowledge_role: Access to create and update content in the application
 # - user: Limited access to knowledge query and basic features
 #
 # HOW TO USE:
@@ -167,23 +167,23 @@ for ROLE in $ROLES; do
   fi
 done
 
-# Create 'admin' role if it doesn't exist
+# Create 'knowledge_role' role if it doesn't exist
 ROLE_EXISTS=$(curl -s -X GET "http://localhost:8080/admin/realms/sophiathoth/roles" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | jq -r '.[] | select(.name=="admin") | .name')
+  -H "Authorization: Bearer $ADMIN_TOKEN" | jq -r '.[] | select(.name=="knowledge_role") | .name')
 
-if [ "$ROLE_EXISTS" == "admin" ]; then
-  echo "Role 'admin' already exists."
+if [ "$ROLE_EXISTS" == "knowledge_role" ]; then
+  echo "Role 'knowledge_role' already exists."
 else
-  # Create admin role
-  echo "Creating 'admin' role..."
+  # Create knowledge_role
+  echo "Creating 'knowledge_role'..."
   curl -s -X POST "http://localhost:8080/admin/realms/sophiathoth/roles" \
     -H "Authorization: Bearer $ADMIN_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{
-      "name": "admin",
-      "description": "Admin role with full access to all features"
+      "name": "knowledge_role",
+      "description": "Role with access to create and update content in the application"
     }'
-  echo "Role 'admin' created successfully."
+  echo "Role 'knowledge_role' created successfully."
 fi
 
 # Create 'user' role if it doesn't exist
@@ -205,15 +205,15 @@ else
   echo "Role 'user' created successfully."
 fi
 
-# Create Admin user
-echo "Creating Admin user..."
-ADMIN_USER_RESPONSE=$(curl -s -X POST "http://localhost:8080/admin/realms/sophiathoth/users" \
+# Create Knowledge user
+echo "Creating Knowledge user..."
+KNOWLEDGE_USER_RESPONSE=$(curl -s -X POST "http://localhost:8080/admin/realms/sophiathoth/users" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "username": "admin_user",
-    "email": "admin_user@example.com",
-    "firstName": "Admin",
+    "username": "knowledge_user",
+    "email": "knowledge_user@example.com",
+    "firstName": "Knowledge",
     "lastName": "User",
     "enabled": true,
     "emailVerified": true,
@@ -227,25 +227,25 @@ ADMIN_USER_RESPONSE=$(curl -s -X POST "http://localhost:8080/admin/realms/sophia
   }')
 
 # Get the user ID to assign role
-ADMIN_USER_ID=$(curl -s -X GET "http://localhost:8080/admin/realms/sophiathoth/users?username=admin_user" \
+KNOWLEDGE_USER_ID=$(curl -s -X GET "http://localhost:8080/admin/realms/sophiathoth/users?username=knowledge_user" \
   -H "Authorization: Bearer $ADMIN_TOKEN" | jq -r '.[0].id')
 
-# Get the role ID for admin
-ADMIN_ROLE_ID=$(curl -s -X GET "http://localhost:8080/admin/realms/sophiathoth/roles" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" | jq -r '.[] | select(.name=="admin") | .id')
+# Get the role ID for knowledge_role
+KNOWLEDGE_ROLE_ID=$(curl -s -X GET "http://localhost:8080/admin/realms/sophiathoth/roles" \
+  -H "Authorization: Bearer $ADMIN_TOKEN" | jq -r '.[] | select(.name=="knowledge_role") | .id')
 
-# Assign admin role to the user
-curl -s -X POST "http://localhost:8080/admin/realms/sophiathoth/users/$ADMIN_USER_ID/role-mappings/realm" \
+# Assign knowledge_role to the user
+curl -s -X POST "http://localhost:8080/admin/realms/sophiathoth/users/$KNOWLEDGE_USER_ID/role-mappings/realm" \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d "[{\
-    \"id\": \"$ADMIN_ROLE_ID\",\
-    \"name\": \"admin\",\
+    \"id\": \"$KNOWLEDGE_ROLE_ID\",\
+    \"name\": \"knowledge_role\",\
     \"clientRole\": false,\
     \"composite\": false\
   }]"
 
-echo "Admin user created and role assigned successfully."
+echo "Knowledge user created and role assigned successfully."
 
 # Create Regular user
 echo "Creating Regular user..."

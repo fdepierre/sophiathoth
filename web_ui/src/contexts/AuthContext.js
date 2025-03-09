@@ -233,14 +233,27 @@ export const AuthProvider = ({ children }) => {
     return user?.roles?.includes(role) || false;
   };
   
-  // Check if user is a Product Manager
-  const isProductManager = () => {
-    return hasRole('product-manager');
+  // Check if user has knowledge role (can create/edit content)
+  const isKnowledgeRole = () => {
+    return hasRole('knowledge_role');
   };
   
-  // Check if user is a Pre-sales specialist
+  // Check if user is a regular user
+  const isUser = () => {
+    return hasRole('user');
+  };
+  
+  // Legacy role checks for backward compatibility
+  const isProductManager = () => {
+    return isKnowledgeRole();
+  };
+  
+  const isAdmin = () => {
+    return isKnowledgeRole();
+  };
+  
   const isPresales = () => {
-    return hasRole('presales');
+    return false; // No longer used
   };
 
   // Authentication context value
@@ -253,8 +266,12 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     hasRole,
+    isKnowledgeRole,
+    isUser,
+    // Legacy role functions for backward compatibility
     isProductManager,
     isPresales,
+    isAdmin,
     redirectLogin,
     refreshToken
   };

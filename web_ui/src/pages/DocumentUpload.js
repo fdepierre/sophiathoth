@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Typography, 
@@ -35,6 +35,27 @@ const DocumentUpload = () => {
   const [success, setSuccess] = useState(null);
   const [processedEntries, setProcessedEntries] = useState([]);
 
+  // Log environment information on component mount
+  useEffect(() => {
+    console.log('DocumentUpload component mounted');
+    
+    // Log environment variables
+    console.log('Environment variables available in window._env_:', 
+                window._env_ ? Object.keys(window._env_) : 'Not available');
+    
+    if (window._env_) {
+      console.log('REACT_APP_DOC_PROCESSOR_URL:', window._env_.REACT_APP_DOC_PROCESSOR_URL);
+      console.log('REACT_APP_DOCUMENT_PROCESSOR_URL:', window._env_.REACT_APP_DOCUMENT_PROCESSOR_URL);
+    }
+    
+    // Check if we're running in development mode
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Running in development mode');
+      console.log('process.env.REACT_APP_DOC_PROCESSOR_URL:', process.env.REACT_APP_DOC_PROCESSOR_URL);
+      console.log('process.env.REACT_APP_DOCUMENT_PROCESSOR_URL:', process.env.REACT_APP_DOCUMENT_PROCESSOR_URL);
+    }
+  }, []);
+
   const handleFileChange = (event) => {
     const selectedFile = event.target.files[0];
     if (selectedFile) {
@@ -43,16 +64,36 @@ const DocumentUpload = () => {
       console.log('File name:', selectedFile.name);
       console.log('File size:', selectedFile.size, 'bytes');
       
-      // Check if it's an Excel file
-      if (selectedFile.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' || 
-          selectedFile.type === 'application/vnd.ms-excel' ||
-          selectedFile.name.endsWith('.xlsx') || 
-          selectedFile.name.endsWith('.xls')) {
+      // More permissive validation - accept any Excel-like file
+      // Some browsers may not correctly identify Excel files
+      const validExcelTypes = [
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel',
+        'application/octet-stream', // Some browsers might use this for Excel files
+        'application/x-excel',
+        'application/x-msexcel'
+      ];
+      
+      const hasValidExtension = selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls');
+      const hasValidMimeType = validExcelTypes.includes(selectedFile.type);
+      
+      if (hasValidExtension || hasValidMimeType) {
         console.log('File validation passed: Excel file detected');
+        console.log('Validation details:', {
+          extension: hasValidExtension ? 'valid' : 'invalid',
+          mimeType: hasValidMimeType ? 'valid' : 'invalid',
+          detectedType: selectedFile.type
+        });
         setFile(selectedFile);
         setError(null);
       } else {
         console.error('File validation failed: Not an Excel file');
+        console.log('Validation details:', {
+          extension: hasValidExtension ? 'valid' : 'invalid',
+          mimeType: hasValidMimeType ? 'valid' : 'invalid',
+          detectedType: selectedFile.type,
+          validTypes: validExcelTypes
+        });
         setFile(null);
         setError('Please select a valid Excel file (.xlsx or .xls)');
       }
@@ -81,6 +122,11 @@ const DocumentUpload = () => {
     setProcessedEntries([]);
 
     try {
+      // Check if file size is reasonable (less than 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        console.warn('Large file detected:', file.size, 'bytes');
+      }
+      
       console.log('Calling uploadExcelDocument API...');
       const result = await uploadExcelDocument(file);
       console.log('Upload successful, response:', result);
@@ -99,12 +145,44 @@ const DocumentUpload = () => {
       document.getElementById('excel-upload-input').value = '';
     } catch (err) {
       console.error('Error uploading file:', err);
+      
+      // Provide more detailed error information
+      let errorMessage = 'Failed to upload file. ';
+      
+      if (err.response) {
+        // The request was made and the server responded with an error status
+        console.error('Server error response:', {
+          status: err.response.status,
+          data: err.response.data,
+          headers: err.response.headers
+        });
+        
+        if (err.response.status === 400) {
+          errorMessage += 'The server rejected the file. Please ensure it is a valid Excel document.';
+        } else if (err.response.status === 401 || err.response.status === 403) {
+          errorMessage += 'Authentication error. Please log in again.';
+        } else if (err.response.status === 413) {
+          errorMessage += 'The file is too large.';
+        } else if (err.response.status >= 500) {
+          errorMessage += 'Server error. Please try again later.';
+        } else {
+          errorMessage += `Server error (${err.response.status}): ${err.response.data?.detail || 'Unknown error'}`;
+        }
+      } else if (err.request) {
+        // The request was made but no response was received
+        console.error('No response received:', err.request);
+        errorMessage += 'No response from server. Please check your network connection and try again.';
+      } else {
+        // Something happened in setting up the request
+        console.error('Request setup error:', err.message);
+        errorMessage += `Error: ${err.message}`;
+      }
       console.error('Error details:', {
         message: err.message,
         response: err.response?.data,
         status: err.response?.status
       });
-      setError(err.response?.data?.detail || 'Error uploading file. Please try again.');
+      setError(errorMessage);
     } finally {
       setLoading(false);
       console.log('Upload process completed');
@@ -115,6 +193,9 @@ const DocumentUpload = () => {
     <Box sx={{ maxWidth: 800, mx: 'auto', py: 4 }}>
       <Typography variant="h4" component="h1" gutterBottom>
         Upload Knowledge Excel File
+      </Typography>
+      <Typography variant="body1" sx={{ mb: 3 }}>
+        Upload an Excel file (.xlsx or .xls) containing tender questions and answers to process into the knowledge base.
       </Typography>
       
       <Typography variant="body1" paragraph>
@@ -159,8 +240,28 @@ const DocumentUpload = () => {
       </Paper>
       
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
+        <Alert 
+          severity="error" 
+          sx={{ mb: 2, '& .MuiAlert-message': { whiteSpace: 'pre-line' } }}
+          action={
+            <Button 
+              color="inherit" 
+              size="small" 
+              onClick={() => setError(null)}
+            >
+              Dismiss
+            </Button>
+          }
+        >
+          <Typography variant="subtitle1" component="div" sx={{ fontWeight: 'bold', mb: 0.5 }}>
+            Upload Error
+          </Typography>
+          <Typography variant="body2">
+            {error}
+          </Typography>
+          <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'text.secondary' }}>
+            If this problem persists, please contact support with the error details from the browser console.
+          </Typography>
         </Alert>
       )}
       

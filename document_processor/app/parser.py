@@ -56,16 +56,62 @@ class ExcelParser:
     
     def _extract_questions(self, sheets: Dict[str, List[Dict[str, Any]]]) -> List[Dict[str, Any]]:
         """
-        Extract potential questions from sheets
+        Extract potential questions and their answers from sheets
         
         Args:
             sheets: Dictionary of sheet name to list of row dictionaries
             
         Returns:
-            List of potential questions
+            List of potential questions with their answers
         """
         questions = []
         
+        # First, try to identify question-answer pairs based on column headers
+        for sheet_name, rows in sheets.items():
+            # Check if we have columns that might represent questions and answers
+            if len(rows) > 0:
+                first_row = rows[0]
+                question_col = None
+                answer_col = None
+                
+                # Look for question/answer column pairs
+                for col_key in first_row.keys():
+                    col_name = str(col_key).lower()
+                    if 'question' in col_name or 'query' in col_name or 'prompt' in col_name:
+                        question_col = col_key
+                    elif 'answer' in col_name or 'response' in col_name or 'reply' in col_name:
+                        answer_col = col_key
+                
+                # If we found both question and answer columns, extract pairs
+                if question_col and answer_col:
+                    logger.info(f"Found question-answer columns in sheet {sheet_name}: {question_col} and {answer_col}")
+                    for row_idx, row in enumerate(rows):
+                        question_text = row.get(question_col, '')
+                        answer_text = row.get(answer_col, '')
+                        
+                        # Skip empty questions
+                        if not question_text or question_text == '':
+                            continue
+                            
+                        if not isinstance(question_text, str):
+                            question_text = str(question_text)
+                        if not isinstance(answer_text, str):
+                            answer_text = str(answer_text)
+                        
+                        questions.append({
+                            "sheet": sheet_name,
+                            "row": row_idx,
+                            "column": question_col,
+                            "answer_column": answer_col,
+                            "text": question_text,
+                            "context": answer_text
+                        })
+                    
+                    # If we found structured Q&A pairs, continue to next sheet
+                    if questions:
+                        continue
+        
+        # Fallback: look for question-like cells and try to find adjacent answers
         for sheet_name, rows in sheets.items():
             for row_idx, row in enumerate(rows):
                 for col_key, cell_value in row.items():
@@ -76,11 +122,31 @@ class ExcelParser:
                     # or containing the word "question"
                     if (cell_value.strip().endswith('?') or 
                         re.search(r'\bquestion\b', cell_value.lower())):
+                        
+                        # Try to find an answer in adjacent cells
+                        answer_text = ""
+                        
+                        # Check cell to the right (most common for horizontal layouts)
+                        if isinstance(col_key, (int, float)):
+                            next_col_key = col_key + 1
+                            if next_col_key in row:
+                                answer_text = row[next_col_key]
+                        
+                        # Check cell below (for vertical layouts)
+                        if not answer_text and row_idx + 1 < len(rows):
+                            next_row = rows[row_idx + 1]
+                            if col_key in next_row:
+                                answer_text = next_row[col_key]
+                        
+                        if not isinstance(answer_text, str):
+                            answer_text = str(answer_text)
+                        
                         questions.append({
                             "sheet": sheet_name,
                             "row": row_idx,
                             "column": col_key,
-                            "text": cell_value
+                            "text": cell_value,
+                            "context": answer_text if answer_text else "No answer found"
                         })
         
         return questions
@@ -194,13 +260,18 @@ class ExcelParser:
                 logger.warning(f"Error converting column index: {e}. Using default value 0.")
                 column_index = 0  # Fallback to 0 if there's any error
             
+            # Get the context/answer from the question data if available
+            context = question_data.get("context", "")
+            if not context:
+                context = f"From sheet: {question_data['sheet']}, row: {question_data['row']}, column: {question_data['column']}"
+            
             question = TenderQuestion(
                 document_id=document.id,
                 sheet_id=sheet_id,
                 text=question_data["text"],
                 row_index=question_data["row"],
                 column_index=column_index,
-                context=f"From sheet: {question_data['sheet']}, row: {question_data['row']}, column: {question_data['column']}"
+                context=context
             )
             db.add(question)
             questions.append(question)

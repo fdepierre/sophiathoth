@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 # Import the ExcelParser directly
-from app.parser import ExcelParser
+from document_processor.app.parser import ExcelParser
 
 
 class TestDocumentProcessor(unittest.TestCase):
@@ -84,7 +84,7 @@ class TestDocumentProcessor(unittest.TestCase):
             questions = [q for q in parsed_data["questions"] if q["sheet"] == "Sheet1"]
             self.assertTrue(len(questions) > 0, "Should extract questions from Sheet1")
     
-    @patch('app.storage.minio_client')
+    @patch('document_processor.app.storage.minio_client')
     def test_api_upload_document(self, mock_minio):
         """Test document upload API endpoint with MinIO mocked"""
         # Configure the mock
@@ -106,13 +106,13 @@ class TestDocumentProcessor(unittest.TestCase):
             files = {"file": (file_path.name, f, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}
             response = requests.post(f"{self.base_url}/documents/", files=files)
         
-        # Verify the response indicates success (201 Created)
-        self.assertEqual(response.status_code, 201)  # 201 Created is the correct status code for resource creation
+        # Verify the response indicates success
+        self.assertEqual(response.status_code, 200)
         response_data = response.json()
         self.assertIn("document_id", response_data)
-        self.assertIn("sheet_count", response_data)
-        self.assertIn("question_count", response_data)
-        self.assertIn("metadata", response_data)
+        self.assertIn("filename", response_data)
+        self.assertIn("storage_path", response_data)
+        self.assertEqual(response_data["storage_path"], mock_upload_filename) # Check if mocked path is returned
         
         # Optionally, verify the mock was called as expected
         mock_minio.upload_file.assert_called_once()

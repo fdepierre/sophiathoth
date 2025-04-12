@@ -38,13 +38,25 @@ if ! grep -q "REACT_APP_KEYCLOAK_URL" /usr/share/nginx/html/env-config.js; then
 fi
 
 if ! grep -q "REACT_APP_KEYCLOAK_REALM" /usr/share/nginx/html/env-config.js; then
-  echo "  REACT_APP_KEYCLOAK_REALM: \"tender-management\"," >> /usr/share/nginx/html/env-config.js
+  echo "  REACT_APP_KEYCLOAK_REALM: \"sophiathoth\"," >> /usr/share/nginx/html/env-config.js
   echo "WARNING: REACT_APP_KEYCLOAK_REALM was missing, added default value" >> /usr/share/nginx/html/env-debug.log
 fi
 
 if ! grep -q "REACT_APP_KEYCLOAK_CLIENT_ID" /usr/share/nginx/html/env-config.js; then
   echo "  REACT_APP_KEYCLOAK_CLIENT_ID: \"web-ui\"," >> /usr/share/nginx/html/env-config.js
   echo "WARNING: REACT_APP_KEYCLOAK_CLIENT_ID was missing, added default value" >> /usr/share/nginx/html/env-debug.log
+fi
+
+# Add document processor URL if missing
+if ! grep -q "REACT_APP_DOCUMENT_PROCESSOR_URL" /usr/share/nginx/html/env-config.js; then
+  echo "  REACT_APP_DOCUMENT_PROCESSOR_URL: \"http://localhost:8001/api/v1\"," >> /usr/share/nginx/html/env-config.js
+  echo "WARNING: REACT_APP_DOCUMENT_PROCESSOR_URL was missing, added default value" >> /usr/share/nginx/html/env-debug.log
+fi
+
+# Add DOC_PROCESSOR_URL as an alias (some components might use this instead)
+if ! grep -q "REACT_APP_DOC_PROCESSOR_URL" /usr/share/nginx/html/env-config.js; then
+  echo "  REACT_APP_DOC_PROCESSOR_URL: \"http://localhost:8001/api/v1\"," >> /usr/share/nginx/html/env-config.js
+  echo "WARNING: REACT_APP_DOC_PROCESSOR_URL was missing, added default value" >> /usr/share/nginx/html/env-debug.log
 fi
 
 echo "}" >> /usr/share/nginx/html/env-config.js

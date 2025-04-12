@@ -261,27 +261,38 @@ export const searchEntries = async (query, limit = 10) => {
 // Document Processing
 export const uploadExcelDocument = async (file) => {
   try {
-    console.log('uploadExcelDocument called with file:', file.name);
+    console.log('uploadExcelDocument called with file:', file.name, 'size:', file.size, 'type:', file.type);
     
     const formData = new FormData();
     formData.append('file', file);
     console.log('FormData created with file appended');
     
-    // Upload to document processor service
-    const docProcessorUrl = getEnv('REACT_APP_DOC_PROCESSOR_URL', 'http://localhost:8001/api/v1');
-    console.log('Document processor URL:', docProcessorUrl);
+    // Try both environment variable names that might be used
+    let docProcessorUrl = getEnv('REACT_APP_DOC_PROCESSOR_URL', null);
+    if (!docProcessorUrl) {
+      docProcessorUrl = getEnv('REACT_APP_DOCUMENT_PROCESSOR_URL', 'http://localhost:8001/api/v1');
+    }
+    console.log('Document processor URL from env:', docProcessorUrl);
+    
+    // Hardcoded fallback for testing
+    if (!docProcessorUrl || docProcessorUrl === 'undefined' || docProcessorUrl === 'null') {
+      docProcessorUrl = 'http://localhost:8001/api/v1';
+      console.log('Using hardcoded fallback URL:', docProcessorUrl);
+    }
     
     // Ensure URL doesn't end with a trailing slash
     const baseUrl = docProcessorUrl.endsWith('/') ? docProcessorUrl.slice(0, -1) : docProcessorUrl;
-    console.log('Using document processor base URL:', baseUrl);
+    console.log('Final document processor base URL:', baseUrl);
     
+    // Log all available environment variables for debugging
+    console.log('All available environment variables in window._env_:', window._env_ ? Object.keys(window._env_) : 'Not available');
+    
+    // Create axios instance without setting Content-Type header
+    // Let axios set the correct multipart boundary
     const docProcessorApi = axios.create({
       baseURL: baseUrl,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-      // Add timeout to prevent hanging requests
-      timeout: 30000
+      // Don't set Content-Type here, let axios handle it for multipart/form-data
+      timeout: 60000 // Increase timeout to 60 seconds for larger files
     });
     
     // Add auth token if authenticated
@@ -296,7 +307,9 @@ export const uploadExcelDocument = async (file) => {
     
     // Log form data contents (without exposing the actual file data)
     for (let pair of formData.entries()) {
-      console.log('FormData entry:', pair[0], 'type:', typeof pair[1], 'name:', pair[1].name || 'N/A');
+      console.log('FormData entry:', pair[0], 'type:', typeof pair[1], 
+                 'name:', pair[1].name || 'N/A', 
+                 'size:', pair[1].size || 'N/A');
     }
     
     // First, check if the document processor API is accessible
@@ -307,21 +320,24 @@ export const uploadExcelDocument = async (file) => {
     } catch (healthError) {
       console.warn('Document processor API health check failed:', healthError.message);
       console.log('Will still attempt to upload document');
+      
+      // Try the root endpoint as a fallback
+      try {
+        const rootCheck = await axios.get(baseUrl.split('/api')[0], { timeout: 5000 });
+        console.log('Document processor root endpoint accessible:', rootCheck.status);
+      } catch (rootError) {
+        console.error('Document processor root endpoint also inaccessible:', rootError.message);
+      }
     }
     
     // Set up request with better error handling
     let uploadResponse;
     
     try {
-      console.log('Attempting document upload with explicit content type and headers');
+      console.log('Attempting document upload with default axios handling');
       
-      // Try with explicit headers
-      const response = await docProcessorApi.post('/documents/', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          'Accept': 'application/json'
-        }
-      });
+      // Let axios handle the content-type header automatically
+      const response = await docProcessorApi.post('/documents/', formData);
       
       console.log('Document upload response status:', response.status);
       console.log('Document upload response data:', response.data);
@@ -340,20 +356,39 @@ export const uploadExcelDocument = async (file) => {
         console.error('Upload error - no response received:', uploadError.request);
       }
       
-      // Try an alternative approach with different content type
-      console.log('Trying alternative upload approach...');
+      // Try alternative approaches
+      console.log('Trying alternative upload approaches...');
+      
+      // Try with explicit content type
       try {
-        // Create a new FormData object
+        console.log('Attempt 1: Using explicit multipart/form-data content type');
         const newFormData = new FormData();
         newFormData.append('file', file);
         
-        // Try without specifying content type (let axios set it automatically)
-        const altResponse = await axios.post(`${baseUrl}/documents/`, newFormData);
-        console.log('Alternative upload succeeded:', altResponse.status, altResponse.data);
-        uploadResponse = altResponse;
-      } catch (altError) {
-        console.error('Alternative upload also failed:', altError.message);
-        throw uploadError; // Throw the original error
+        const altResponse1 = await axios.post(`${baseUrl}/documents/`, newFormData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+        console.log('Alternative upload 1 succeeded:', altResponse1.status);
+        uploadResponse = altResponse1;
+      } catch (altError1) {
+        console.error('Alternative upload 1 failed:', altError1.message);
+        
+        // Try with application/octet-stream
+        try {
+          console.log('Attempt 2: Using direct axios without FormData');
+          const altResponse2 = await axios.post(`${baseUrl}/documents/`, formData, {
+            headers: {
+              // Let browser set the content type and boundary
+            }
+          });
+          console.log('Alternative upload 2 succeeded:', altResponse2.status);
+          uploadResponse = altResponse2;
+        } catch (altError2) {
+          console.error('Alternative upload 2 also failed:', altError2.message);
+          throw uploadError; // Throw the original error if all attempts fail
+        }
       }
     }
     
@@ -446,20 +481,45 @@ export const processDocumentToKnowledge = async (documentId) => {
             const rowIndex = typeof question.row_index === 'string' ? parseInt(question.row_index, 10) : question.row_index;
             const columnIndex = typeof question.column_index === 'string' ? parseInt(question.column_index, 10) : question.column_index;
             
+            // Log the question structure to help debug field mapping
+            console.log('Question structure:', JSON.stringify(question, null, 2));
+            
+            // Determine which fields to use for question and answer
+            // The Excel file might have different column names, so we need to be flexible
+            let questionText = '';
+            let answerText = '';
+            
+            // Check if we have explicit question/answer fields
+            if (question.question && (question.answer || question.response)) {
+              // Direct question/answer mapping
+              questionText = question.question;
+              answerText = question.answer || question.response || '';
+            } else if (question.text && question.context) {
+              // Document processor's default mapping
+              questionText = question.text;
+              answerText = question.context;
+            } else {
+              // Fallback to using available fields
+              questionText = question.text || question.title || question.question || 'Unknown Question';
+              answerText = question.context || question.content || question.answer || 
+                          question.response || question.summary || 'No answer provided yet';
+            }
+            
             // Create a knowledge entry for each question
             const entryData = {
-              title: question.text,
-              content: question.context || 'No answer provided yet',
-              summary: question.text,
+              title: questionText, // Map question to title field
+              content: answerText, // Map answer to content field
+              summary: questionText.substring(0, 200), // Use question as summary but limit length
               source_type: 'document',
               source_id: documentId,
-              tags: ['imported', 'document'],
+              tags: ['imported', 'document', 'tender-qa'],
               entry_metadata: {
                 document_id: documentId,
                 question_id: question.id,
                 sheet_id: question.sheet_id,
                 row_index: rowIndex || 0,
-                column_index: columnIndex || 0
+                column_index: columnIndex || 0,
+                original_fields: Object.keys(question).join(',') // Store original field names for debugging
               }
             };
             

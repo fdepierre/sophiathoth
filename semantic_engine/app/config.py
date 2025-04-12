@@ -16,9 +16,8 @@ class Settings(BaseSettings):
     API_V1_STR: str = Field(default="/api/v1")
     PROJECT_NAME: str = Field(default="Tender Management System - Semantic Engine")
     
-    # Embedding model settings
-    EMBEDDING_MODEL: str = Field(default="all-MiniLM-L6-v2")
-    EMBEDDING_DIMENSION: int = Field(default=384)  # Dimension for the chosen model
+    # Embedding model settings (using Ollama)
+    EMBEDDING_DIMENSION: int = Field(default=768)  # Dimension for nomic-embed-text
     
     # Redis settings
     REDIS_HOST: str = Field(default="redis")
@@ -28,7 +27,7 @@ class Settings(BaseSettings):
     
     # Ollama settings
     OLLAMA_BASE_URL: str = Field(default="http://ollama:11434")
-    OLLAMA_MODEL: str = Field(default="llama2")
+    OLLAMA_MODEL: str = Field(default="nomic-embed-text")
     
     # Document processor service
     DOCUMENT_PROCESSOR_URL: str = Field(default="http://document_processor:8000/api/v1")

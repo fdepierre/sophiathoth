@@ -305,7 +305,7 @@ async def upload_attachment(
         storage_path = minio_client.upload_file(
             file_data=file_content,
             content_type=file.content_type,
-            filename=f"knowledge_{entry_id}_{file.filename}"
+            object_name=f"knowledge_{entry_id}_{file.filename}"
         )
         
         # Create attachment record
@@ -351,7 +351,7 @@ def get_attachments(
     return entry.attachments
 
 
-@router.get("/{entry_id}/attachments/{attachment_id}")
+@router.get("/{entry_id}/attachments/{attachment_id}/download")
 async def download_attachment(
     entry_id: str,
     attachment_id: str,
@@ -469,6 +469,7 @@ async def search_knowledge_post(
         # Try to get similar knowledge from semantic engine
         similar_knowledge = await semantic_client.find_similar_knowledge(
             text=search_request.query,
+            db=db,
             limit=search_request.limit,
             threshold=0.6
         )

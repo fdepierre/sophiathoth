@@ -17,7 +17,7 @@ class TestDocumentProcessor(unittest.TestCase):
     def setUpClass(cls):
         """Set up test environment"""
         # Use a hardcoded port for testing
-        cls.port = 8000
+        cls.port = 8001
         cls.api_prefix = "/api/v1"
         cls.base_url = f"http://localhost:{cls.port}{cls.api_prefix}"
         cls.test_files_dir = Path(os.path.dirname(os.path.dirname(__file__)))

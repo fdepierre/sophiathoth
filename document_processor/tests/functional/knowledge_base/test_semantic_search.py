@@ -17,7 +17,7 @@ class TestKnowledgeBaseSemanticSearch(unittest.TestCase):
 
     def setUp(self):
         """Set up test data and ensure the API is accessible"""
-        self.api_url = f"{KB_API_BASE_URL}/api/v1/knowledge"
+        self.api_url = f"{KB_API_BASE_URL}/api/v1/entries"
         
         # Test data - create entries with varied content for semantic search testing
         self.test_entries = [

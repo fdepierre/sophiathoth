@@ -18,7 +18,7 @@ class TestKnowledgeBaseAPI(unittest.TestCase):
 
     def setUp(self):
         """Set up test data and ensure the API is accessible"""
-        self.api_url = f"{KB_API_BASE_URL}/api/v1/knowledge"
+        self.api_url = f"{KB_API_BASE_URL}/api/v1/entries"
         self.categories_url = f"{KB_API_BASE_URL}/api/v1/categories"
         self.tags_url = f"{KB_API_BASE_URL}/api/v1/tags"
         
@@ -164,7 +164,7 @@ class TestKnowledgeBaseAPI(unittest.TestCase):
         
         # Delete the entry
         response = requests.delete(f"{self.api_url}/{created_entry['id']}")
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)  # DELETE operations return 204 No Content
         
         # Verify entry is deleted
         get_response = requests.get(f"{self.api_url}/{created_entry['id']}")

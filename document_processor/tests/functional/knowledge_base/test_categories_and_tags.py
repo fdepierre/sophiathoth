@@ -136,7 +136,7 @@ class TestKnowledgeBaseCategoriesAndTags(unittest.TestCase):
         
         # Delete the category
         response = requests.delete(f"{self.categories_url}/{created_category['id']}")
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)  # DELETE operations return 204 No Content
         
         # Verify category is deleted
         get_response = requests.get(f"{self.categories_url}/{created_category['id']}")
@@ -246,7 +246,7 @@ class TestKnowledgeBaseCategoriesAndTags(unittest.TestCase):
         
         # Delete the tag
         response = requests.delete(f"{self.tags_url}/{created_tag['id']}")
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 204)  # DELETE operations return 204 No Content
         
         # Verify tag is deleted
         get_response = requests.get(f"{self.tags_url}/{created_tag['id']}")

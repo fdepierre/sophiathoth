@@ -1,6 +1,11 @@
 # SophiaThoth .gitignore file
 # Comprehensive file combining GitHub templates for Node.js, Python, and Rust
 
+# AI working files
+CLAUDE.md
+
+
+
 ###################
 # Node.js related #
 ###################
